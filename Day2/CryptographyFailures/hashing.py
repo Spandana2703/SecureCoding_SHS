@@ -1,79 +1,68 @@
 import bcrypt
+import json
 import os
 
-USER_DATA_FILE = "admin_data.txt"
+ADMIN_CREDENTIALS_FILE = "admin_credentials.json"
+PATIENT_DATA_FILE = "patients_2.json"
+MAX_LOGIN_ATTEMPTS = 3
 
-def hash_passcode(passcode: str) -> bytes:
-    return bcrypt.hashpw(passcode.encode('utf-8'), bcrypt.gensalt())
+def hash_passcode(passcode):
+    return bcrypt.hashpw(passcode.encode(), bcrypt.gensalt()).decode()
 
+def check_passcode(passcode, hashed_passcode):
+    return bcrypt.checkpw(passcode.encode(), hashed_passcode.encode())
 
-def verify_passcode(stored_hash: bytes, passcode: str) -> bool:
-    return bcrypt.checkpw(passcode.encode('utf-8'), stored_hash)
+def load_credentials():
+    if not os.path.exists(ADMIN_CREDENTIALS_FILE):
+        return {}
+    with open(ADMIN_CREDENTIALS_FILE, "r") as file:
+        return json.load(file)
 
+def save_credentials(credentials):
+    with open(ADMIN_CREDENTIALS_FILE, "w") as file:
+        json.dump(credentials, file)
 
 def register_admin():
-    print("Admin Registration")
     username = input("Enter a username: ")
+    credentials = load_credentials()
+    if username in credentials:
+        print("Username already exists. Try another one.")
+        return
     passcode = input("Enter a passcode: ")
-
-    hashed_passcode = hash_passcode(passcode)
-
-    with open(USER_DATA_FILE, 'w') as file:
-        file.write(f"{username},{hashed_passcode.decode('utf-8')}\n")
-
+    credentials[username] = hash_passcode(passcode)
+    save_credentials(credentials)
     print("Admin registered successfully!")
 
-
 def login_admin():
-    print("Admin Login")
-    
-    if not os.path.exists(USER_DATA_FILE):
-        print("No admin registered. Please register first.")
-        return False
-
-    username = input("Enter your username: ")
-    passcode = input("Enter your passcode: ")
-
-    with open(USER_DATA_FILE, 'r') as file:
-        admin_data = file.readlines()
-
-   
+    credentials = load_credentials()
     attempts = 0
-    while attempts < 3:
-        for admin in admin_data:
-            stored_username, stored_hash = admin.strip().split(',')
-            if stored_username == username:
-                if verify_passcode(stored_hash.encode('utf-8'), passcode):
-                    print("Login successful!")
-                    return True
-                else:
-                    attempts += 1
-                    print(f"Invalid passcode. {3 - attempts} attempts left.")
-                    break
-        if attempts == 3:
-            print("You have been locked out due to too many failed attempts.")
-            return False
-        username = input("Re-enter your username: ")
-        passcode = input("Re-enter your passcode: ")
+    while attempts < MAX_LOGIN_ATTEMPTS:
+        username = input("Enter username: ")
+        passcode = input("Enter passcode: ")
+        if username in credentials and check_passcode(passcode, credentials[username]):
+            print("Login successful! Access granted.")
+            return True
+        else:
+            print("Invalid username or passcode. Try again.")
+            attempts += 1
+    print("Too many failed attempts. Access locked.")
     return False
 
-
 def main():
-    print("Welcome to the Hospital Admin System")
-    
     while True:
-        choice = input("Choose an option: 1) Register 2) Login 3) Exit: ")
-
-        if choice == '1':
+        print("\n1. Register Admin")
+        print("2. Login Admin")
+        print("3. Exit")
+        choice = input("Choose an option: ")
+        if choice == "1":
             register_admin()
-        elif choice == '2':
+        elif choice == "2":
             login_admin()
-        elif choice == '3':
-            print("Exiting system.")
+        elif choice == "3":
+            print("Exiting application.")
             break
         else:
-            print("Invalid choice. Please try again.")
+            print("Invalid option. Try again.")
 
 if __name__ == "__main__":
     main()
-
